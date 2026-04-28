@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: arm-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-arm_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-arm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docs/sql/00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
+      - ./services/worker/migrations/001_create_tables.sql:/docker-entrypoint-initdb.d/01_worker_tables.sql
+      - ./services/worker/migrations/002_add_payment_registration_fields.sql:/docker-entrypoint-initdb.d/02_add_payment_registration_fields.sql
+      - ./services/worker/migrations/003_create_proxies_table.sql:/docker-entrypoint-initdb.d/03_create_proxies_table.sql
+      - ./services/worker/migrations/004_add_logs_to_tasks.sql:/docker-entrypoint-initdb.d/04_add_logs_to_tasks.sql
+      - ./services/worker/migrations/005_change_api_key_to_plaintext.sql:/docker-entrypoint-initdb.d/05_change_api_key_to_plaintext.sql
+      - ./services/worker/migrations/006_create_teams_tables.sql:/docker-entrypoint-initdb.d/06_create_teams_tables.sql
+      - ./services/worker/migrations/007_add_exported_field.sql:/docker-entrypoint-initdb.d/07_add_exported_field.sql
+      - ./services/worker/migrations/008_add_payment_status_field.sql:/docker-entrypoint-initdb.d/08_add_payment_status_field.sql
+      - ./services/worker/migrations/009_add_region_field.sql:/docker-entrypoint-initdb.d/09_add_region_field.sql
+      - ./services/worker/migrations/010_add_subscription_type_field.sql:/docker-entrypoint-initdb.d/10_add_subscription_type_field.sql
+      - ./services/worker/migrations/011_add_workspace_tokens_field.sql:/docker-entrypoint-initdb.d/11_add_workspace_tokens_field.sql
+      - ./services/worker/migrations/012_add_plain_password_field.sql:/docker-entrypoint-initdb.d/12_add_plain_password_field.sql
+      - ./services/worker/migrations/013_cleanup_chatgpt_account_fields.sql:/docker-entrypoint-initdb.d/13_cleanup_chatgpt_account_fields.sql
+      - ./services/worker/migrations/014_add_team_workspace_id.sql:/docker-entrypoint-initdb.d/14_add_team_workspace_id.sql
+      - ./services/worker/migrations/015_archive_drop_unused_status_progress.sql:/docker-entrypoint-initdb.d/15_archive_drop_unused_status_progress.sql
+      - ./services/worker/migrations/016_add_team_members_cache.sql:/docker-entrypoint-initdb.d/16_add_team_members_cache.sql
+      - ./services/worker/migrations/017_simplify_chatgpt_account_status.sql:/docker-entrypoint-initdb.d/17_simplify_chatgpt_account_status.sql
+      - ./services/worker/migrations/018_drop_local_mailbox_resource_tables.sql:/docker-entrypoint-initdb.d/18_drop_local_mailbox_resource_tables.sql
+      - ./services/worker/migrations/019_add_proxy_health_fields.sql:/docker-entrypoint-initdb.d/19_add_proxy_health_fields.sql
+      - ./services/worker/migrations/020_create_app_settings.sql:/docker-entrypoint-initdb.d/20_create_app_settings.sql
+      - ./services/worker/migrations/021_create_sub2api_sites.sql:/docker-entrypoint-initdb.d/21_create_sub2api_sites.sql
+      - ./services/worker/migrations/022_create_sub2api_monitoring.sql:/docker-entrypoint-initdb.d/22_create_sub2api_monitoring.sql
+      - ./services/worker/migrations/023_drop_chatgpt_auth_mode.sql:/docker-entrypoint-initdb.d/23_drop_chatgpt_auth_mode.sql
+      - ./services/worker/migrations/024_create_email_provider_domains.sql:/docker-entrypoint-initdb.d/24_create_email_provider_domains.sql
+      - ./services/worker/migrations/025_drop_sub2api_site_default.sql:/docker-entrypoint-initdb.d/25_drop_sub2api_site_default.sql
+      - ./services/worker/migrations/026_add_chatgpt_card_type.sql:/docker-entrypoint-initdb.d/26_add_chatgpt_card_type.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arm_user} -d ${POSTGRES_DB:-arm_prod}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  worker:
+    image: ${ARM_WORKER_IMAGE:?ARM_WORKER_IMAGE is required}
+    container_name: arm-worker
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-arm_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-arm_prod}
+      WORKER_PORT: 8001
+      ENCRYPTION_KEY: ${ARM_DATA_ENCRYPTION_KEY:?ARM_DATA_ENCRYPTION_KEY is required}
+      TEAM_MUTUAL_BIND_CONCURRENCY: ${TEAM_MUTUAL_BIND_CONCURRENCY:-2}
+      MOEMAIL_API: ${MOEMAIL_API:-https://moemail-4gj.pages.dev}
+      MOEMAIL_API_KEY: ${MOEMAIL_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    image: ${ARM_WEB_IMAGE:?ARM_WEB_IMAGE is required}
+    container_name: arm-web
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-arm_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-arm_prod}
+      WORKER_SERVICE_URL: http://worker:8001
+      ARM_DATA_ENCRYPTION_KEY: ${ARM_DATA_ENCRYPTION_KEY:?ARM_DATA_ENCRYPTION_KEY is required}
+      ARM_ADMIN_EMAIL: ${ARM_ADMIN_EMAIL:?ARM_ADMIN_EMAIL is required}
+      ARM_ADMIN_PASSWORD: ${ARM_ADMIN_PASSWORD:?ARM_ADMIN_PASSWORD is required}
+      ARM_SESSION_SECRET: ${ARM_SESSION_SECRET:?ARM_SESSION_SECRET is required}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
