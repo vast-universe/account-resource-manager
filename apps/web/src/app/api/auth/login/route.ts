@@ -12,6 +12,16 @@ type LoginRequestBody = {
   rememberMe?: boolean;
 };
 
+function isHttpsRequest(request: Request) {
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+
+  if (forwardedProto) {
+    return forwardedProto === "https";
+  }
+
+  return new URL(request.url).protocol === "https:";
+}
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as LoginRequestBody | null;
   const email = body?.email?.trim() || "";
@@ -34,7 +44,7 @@ export async function POST(request: Request) {
   response.cookies.set(SESSION_COOKIE_NAME, createAdminSessionValue(), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isHttpsRequest(request),
     path: "/",
     ...(rememberMe ? { maxAge: SESSION_MAX_AGE } : {}),
   });
