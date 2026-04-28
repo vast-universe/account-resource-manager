@@ -1,0 +1,13 @@
+ALTER TABLE proxies
+ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS last_success_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS last_failure_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS last_checked_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS latency_ms INTEGER,
+ADD COLUMN IF NOT EXISTS success_count INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS failure_count INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS last_error TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_proxies_health
+ON proxies(is_active, failure_count, latency_ms, last_success_at)
+WHERE deleted_at IS NULL;

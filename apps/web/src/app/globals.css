@@ -1,0 +1,351 @@
+:root {
+  --arm-header-height: 72px;
+  --arm-viewport-height: 100vh;
+  --background: #f9fafb;
+  --foreground: #101828;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-muted: #fcfcfd;
+  --border-color: #e4e7ec;
+  --border-strong: #d0d5dd;
+  --shell-sidebar: #ffffff;
+  --shell-header: rgba(255, 255, 255, 0.96);
+  --hero-background:
+    radial-gradient(circle at top right, rgba(70, 95, 255, 0.12), transparent 28%), #f9fafb;
+  --hero-panel: linear-gradient(180deg, #465fff 0%, #3641f5 55%, #2a31d8 100%);
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-panel:
+    0 20px 24px -4px rgba(16, 24, 40, 0.08), 0 8px 8px -4px rgba(16, 24, 40, 0.03);
+  --shadow-sidebar-hover: 0 12px 24px rgba(16, 24, 40, 0.08);
+  color-scheme: light;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --arm-viewport-height: 100dvh;
+  }
+}
+
+html.dark {
+  --background: #0c111d;
+  --foreground: rgba(255, 255, 255, 0.92);
+  --surface: #101828;
+  --surface-elevated: #182230;
+  --surface-muted: #1a2231;
+  --border-color: #243041;
+  --border-strong: #344054;
+  --shell-sidebar: #101828;
+  --shell-header: rgba(16, 24, 40, 0.92);
+  --hero-background:
+    radial-gradient(circle at top right, rgba(70, 95, 255, 0.2), transparent 32%),
+    linear-gradient(180deg, #0c111d 0%, #101828 100%);
+  --hero-panel: linear-gradient(180deg, #3641f5 0%, #243eb6 52%, #101828 100%);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-panel: 0 24px 48px rgba(0, 0, 0, 0.36);
+  --shadow-sidebar-hover: 0 18px 40px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+html {
+  height: 100%;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: var(--arm-viewport-height);
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-geist-sans), "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.ant-app,
+.ant-layout {
+  background: transparent;
+}
+
+.arm-workspace-desktop-sider,
+.arm-workspace-desktop-trigger {
+  display: none !important;
+}
+
+.arm-workspace-mobile-trigger {
+  display: inline-flex !important;
+}
+
+.arm-workspace-header {
+  padding-inline: 16px !important;
+}
+
+.arm-workspace-content {
+  padding: 16px !important;
+  min-width: 0;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.arm-dashboard-grid {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.arm-dashboard-stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+
+.arm-dashboard-module-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+}
+
+.arm-dashboard-task-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+}
+
+.arm-dashboard-recent-task {
+  min-width: 0;
+  padding: 12px 0;
+}
+
+.arm-dashboard-recent-task-main {
+  min-width: 0;
+}
+
+.arm-dashboard-recent-task-meta {
+  flex-shrink: 0;
+}
+
+@media (min-width: 992px) {
+  :root {
+    --arm-header-height: 88px;
+  }
+
+  .arm-workspace-desktop-sider {
+    display: block !important;
+  }
+
+  .arm-workspace-mobile-drawer {
+    display: none !important;
+  }
+
+  .arm-workspace-desktop-trigger {
+    display: inline-flex !important;
+  }
+
+  .arm-workspace-mobile-trigger {
+    display: none !important;
+  }
+
+  .arm-workspace-header {
+    padding-inline: 24px !important;
+  }
+
+  .arm-workspace-content {
+    padding: 24px !important;
+  }
+}
+
+@media (max-width: 575px) {
+  .arm-workspace-header {
+    gap: 8px !important;
+  }
+
+  .arm-workspace-mobile-trigger {
+    position: relative !important;
+    z-index: 1001 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+    touch-action: manipulation;
+    pointer-events: auto;
+  }
+
+  .arm-workspace-header-actions {
+    flex-wrap: nowrap !important;
+    flex-shrink: 0;
+    gap: 6px !important;
+  }
+
+  .arm-workspace-notification-button {
+    display: inline-flex !important;
+    min-width: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important;
+  }
+
+  .arm-workspace-account-button {
+    min-width: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding-inline: 0 !important;
+  }
+
+  .arm-workspace-account-button .ant-avatar {
+    width: 24px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+  }
+
+  .arm-workspace-account-button .anticon-down {
+    display: none !important;
+  }
+}
+
+.arm-ellipsis {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arm-responsive-card,
+.arm-table-card {
+  min-width: 0;
+  background: var(--surface) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.arm-responsive-card .ant-card-head,
+.arm-table-card .ant-card-head {
+  min-width: 0;
+}
+
+.arm-responsive-card .ant-card-head-wrapper,
+.arm-table-card .ant-card-head-wrapper {
+  min-width: 0;
+  gap: 12px;
+}
+
+.arm-responsive-card .ant-card-head-title,
+.arm-table-card .ant-card-head-title {
+  min-width: 0;
+}
+
+.arm-page-toolbar {
+  width: 100%;
+  min-width: 0;
+}
+
+.arm-table-card .ant-card-body {
+  min-width: 0;
+}
+
+.arm-table-card .ant-table-wrapper {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .arm-responsive-card .ant-card-body,
+  .arm-table-card .ant-card-body {
+    padding: 12px !important;
+  }
+
+  .arm-responsive-card .ant-card-head,
+  .arm-table-card .ant-card-head {
+    padding-inline: 12px !important;
+  }
+
+  .arm-responsive-card .ant-card-extra,
+  .arm-table-card .ant-card-extra {
+    margin-inline-start: 0 !important;
+  }
+
+  .arm-responsive-card .ant-card-head-wrapper,
+  .arm-table-card .ant-card-head-wrapper {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .arm-module-card .ant-card-head-wrapper {
+    align-items: center !important;
+    flex-direction: row;
+  }
+
+  .arm-module-card .ant-card-extra {
+    margin-inline-start: auto !important;
+  }
+
+  .arm-page-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .arm-page-toolbar .ant-input-affix-wrapper,
+  .arm-page-toolbar .ant-space,
+  .arm-page-toolbar .ant-btn,
+  .arm-page-toolbar .ant-dropdown-trigger {
+    width: 100%;
+  }
+
+  .arm-page-toolbar .ant-space-item {
+    width: 100%;
+  }
+
+  .arm-card-actions {
+    width: 100%;
+  }
+
+  .arm-card-actions .ant-space-item,
+  .arm-card-actions .ant-btn {
+    width: 100%;
+  }
+
+  .arm-table-card .ant-pagination {
+    justify-content: flex-start;
+  }
+
+  .ant-modal {
+    max-width: calc(100vw - 24px) !important;
+  }
+}
+
+@media (max-width: 575px) {
+  .arm-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .arm-dashboard-recent-task {
+    align-items: stretch !important;
+    flex-direction: column;
+    gap: 8px !important;
+  }
+
+  .arm-dashboard-recent-task-main,
+  .arm-dashboard-recent-task-meta {
+    width: 100%;
+  }
+
+  .arm-dashboard-recent-task-meta {
+    justify-content: space-between;
+  }
+}

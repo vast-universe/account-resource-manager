@@ -1,0 +1,9 @@
+node_modules
+apps/web/.next
+apps/web/node_modules
+services/worker/__pycache__
+services/worker/**/__pycache__
+.pytest_cache
+.git
+*.log
+*.har
