@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -13,6 +12,7 @@ from psycopg2.extras import RealDictCursor
 
 from chatgpt.token_extractor import TokenExtractor
 from integrations.chatgpt_api_client import ChatGPTApiClient
+from repositories.email_providers import EmailProviderRepository
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,13 @@ class ChatGPTTokenExtractionError(Exception):
 
 def _connect(database_url: str):
     return psycopg2.connect(database_url)
+
+
+def _get_moemail_provider(database_url: str) -> Dict[str, Any]:
+    provider = EmailProviderRepository(database_url).get_default_provider("moemail")
+    if not provider or not provider.get("api_url") or not provider.get("api_key"):
+        raise ChatGPTTokenExtractionError("未配置可用 MoeMail provider", 400)
+    return provider
 
 
 def update_chatgpt_account_refresh_status(
@@ -273,8 +280,9 @@ def extract_tokens_for_account(
         )
         raise ChatGPTTokenExtractionError("账号缺少 MoeMail 邮箱 ID", 400)
 
-    moemail_api = os.environ.get("MOEMAIL_API", "https://moemail-4gj.pages.dev")
-    moemail_api_key = os.environ.get("MOEMAIL_API_KEY", "mk_ZrcAU7m_-ksnXKSmOv-uNqL4NBrzuifT")
+    moemail_provider = _get_moemail_provider(database_url)
+    moemail_api = moemail_provider["api_url"]
+    moemail_api_key = moemail_provider["api_key"]
     existing_workspace_tokens = account.get("workspace_tokens") or []
     if isinstance(existing_workspace_tokens, str):
         try:
