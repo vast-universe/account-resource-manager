@@ -4,7 +4,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
-function readConfiguredValue(name: string, localFallback: string) {
+function readOptionalValue(name: string, localFallback: string) {
+  return process.env[name]?.trim() || localFallback;
+}
+
+function readRuntimeValue(name: string, localFallback: string) {
   const value = process.env[name]?.trim();
 
   if (value) {
@@ -18,12 +22,21 @@ function readConfiguredValue(name: string, localFallback: string) {
   return localFallback;
 }
 
-export const ADMIN_EMAIL = readConfiguredValue("ARM_ADMIN_EMAIL", "admin@localhost").toLowerCase();
-export const ADMIN_PASSWORD = readConfiguredValue("ARM_ADMIN_PASSWORD", "change-me");
+function getAdminEmail() {
+  return readRuntimeValue("ARM_ADMIN_EMAIL", "admin@localhost").toLowerCase();
+}
+
+function getAdminPassword() {
+  return readRuntimeValue("ARM_ADMIN_PASSWORD", "change-me");
+}
+
+function getSessionSecret() {
+  return readRuntimeValue("ARM_SESSION_SECRET", "dev-session-secret-change-me");
+}
+
+export const ADMIN_EMAIL = readOptionalValue("ARM_ADMIN_EMAIL", "admin@localhost").toLowerCase();
 export const SESSION_COOKIE_NAME = "arm-admin-session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
-
-const SESSION_SECRET = readConfiguredValue("ARM_SESSION_SECRET", "dev-session-secret-change-me");
 
 type SessionPayload = {
   email: string;
@@ -31,7 +44,7 @@ type SessionPayload = {
 };
 
 function signSessionPayload(payload: string) {
-  return createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+  return createHmac("sha256", getSessionSecret()).update(payload).digest("base64url");
 }
 
 function safeEqual(left: string, right: string) {
@@ -50,7 +63,7 @@ export function normalizeEmail(email: string) {
 }
 
 export function isValidAdminCredentials(email: string, password: string) {
-  return normalizeEmail(email) === ADMIN_EMAIL && password === ADMIN_PASSWORD;
+  return normalizeEmail(email) === getAdminEmail() && password === getAdminPassword();
 }
 
 function encodeSessionPayload(payload: SessionPayload) {
@@ -67,7 +80,7 @@ function decodeSessionPayload(payload: string) {
 
 export function createAdminSessionValue() {
   const payload = encodeSessionPayload({
-    email: ADMIN_EMAIL,
+    email: getAdminEmail(),
     role: "admin",
   });
   const signature = signSessionPayload(payload);
@@ -102,7 +115,7 @@ export function verifyAdminSessionValue(sessionValue?: string | null) {
   const expectedSignature = signSessionPayload(payload);
 
   return (
-    decodedPayload.email === ADMIN_EMAIL &&
+    decodedPayload.email === getAdminEmail() &&
     decodedPayload.role === "admin" &&
     safeEqual(signature, expectedSignature)
   );
