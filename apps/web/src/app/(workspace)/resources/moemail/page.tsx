@@ -170,9 +170,38 @@ export default function MoeMailPage() {
       message.warning(`${label}为空，无法复制`);
       return;
     }
+
+    // 检查是否在浏览器环境
+    if (typeof window === "undefined") {
+      return;
+    }
+
     try {
-      await navigator.clipboard.writeText(value);
-      message.success(`${label}已复制`);
+      // 优先使用现代 Clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(value);
+        message.success(`${label}已复制`);
+        return;
+      }
+
+      // 降级方案：使用传统方法（支持非 HTTPS 环境）
+      const textArea = document.createElement("textarea");
+      textArea.value = value;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      const successful = document.execCommand("copy");
+      document.body.removeChild(textArea);
+
+      if (successful) {
+        message.success(`${label}已复制`);
+      } else {
+        message.error("复制失败，请重试");
+      }
     } catch (error) {
       console.error("复制失败:", error);
       message.error("复制失败，请重试");
