@@ -170,8 +170,13 @@ export default function MoeMailPage() {
       message.warning(`${label}为空，无法复制`);
       return;
     }
-    await navigator.clipboard.writeText(value);
-    message.success(`${label}已复制`);
+    try {
+      await navigator.clipboard.writeText(value);
+      message.success(`${label}已复制`);
+    } catch (error) {
+      console.error("复制失败:", error);
+      message.error("复制失败，请重试");
+    }
   };
 
   const handleDeleteMailbox = async (emailId: string) => {
@@ -347,7 +352,7 @@ export default function MoeMailPage() {
                               icon={<CopyOutlined />}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                handleCopy(mailbox.email, "邮箱地址");
+                                void handleCopy(mailbox.email, "邮箱地址");
                               }}
                             />
                           </Tooltip>
