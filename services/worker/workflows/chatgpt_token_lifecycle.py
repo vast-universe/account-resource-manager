@@ -111,6 +111,8 @@ def _build_refreshed_workspace_token(
     workspace_id = workspace.get("workspace_id") or workspace.get("id")
     if not token_data.get("refresh_token"):
         token_data = {**token_data, "refresh_token": workspace.get("refresh_token") or ""}
+    if not token_data.get("email") and workspace.get("email"):
+        token_data = {**token_data, "email": workspace.get("email") or ""}
 
     result = build_workspace_token_result(
         token_data,
@@ -157,6 +159,7 @@ def _save_refreshed_workspace_tokens(
                 access_token = COALESCE(NULLIF(%s, ''), access_token),
                 refresh_token = COALESCE(NULLIF(%s, ''), refresh_token),
                 id_token = COALESCE(NULLIF(%s, ''), id_token),
+                account_id = COALESCE(NULLIF(%s, ''), account_id),
                 workspace_tokens = %s,
                 subscription_type = COALESCE(%s, subscription_type),
                 status = 'active',
@@ -170,6 +173,7 @@ def _save_refreshed_workspace_tokens(
                 first_workspace.get("access_token", ""),
                 first_workspace.get("refresh_token", ""),
                 first_workspace.get("id_token", ""),
+                first_workspace.get("account_id") or first_workspace.get("workspace_id", ""),
                 json.dumps(workspaces),
                 subscription_type,
                 "healthy" if check_result is None else "warning",
@@ -254,6 +258,7 @@ def refresh_subscription_status(
 
         try:
             token_data = _refresh_oauth_token(refresh_token, proxy_url=proxy_url)
+            token_data["email"] = account.get("email") or workspace.get("email") or ""
             updated_workspaces.append(_build_refreshed_workspace_token(workspace, token_data))
             refreshed_count += 1
         except ChatGPTTokenExtractionError as exc:

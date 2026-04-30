@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { App, Button, Tooltip, theme } from "antd";
 import { CheckOutlined, CopyOutlined } from "@ant-design/icons";
 import Text from "antd/es/typography/Text";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 type CopyState = {
   copied: boolean;
@@ -35,7 +36,10 @@ function useCopyFeedback() {
     }
 
     try {
-      await navigator.clipboard.writeText(trimmedValue);
+      const copied = await copyTextToClipboard(trimmedValue);
+      if (!copied) {
+        throw new Error("copy failed");
+      }
       setState((currentState) => ({
         ...currentState,
         copied: true,

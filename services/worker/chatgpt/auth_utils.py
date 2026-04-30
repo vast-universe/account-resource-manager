@@ -5,18 +5,20 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import random
 import re
 import secrets
+import uuid
 from typing import Any, Dict, List, Optional, Tuple
 import time
 from urllib.parse import parse_qs, unquote, urlparse
+from datetime import datetime, timezone, timedelta
 
 
 def generate_pkce() -> Tuple[str, str]:
-    code_verifier = secrets.token_urlsafe(32)
-    code_challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(code_verifier.encode()).digest()
-    ).decode().rstrip("=")
+    code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(64)).rstrip(b"=").decode("ascii")
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
     return code_verifier, code_challenge
 
 
@@ -30,11 +32,16 @@ def extract_code_from_url(url: str) -> Optional[str]:
 
 
 def make_trace_headers() -> Dict[str, str]:
+    trace_id = random.randint(10**17, 10**18 - 1)
+    parent_id = random.randint(10**17, 10**18 - 1)
+    traceparent = f"00-{uuid.uuid4().hex}-{format(parent_id, '016x')}-01"
     return {
-        "openai-sentinel-chat-requirements-token": "",
-        "openai-sentinel-proof-token": "",
-        "openai-sentinel-turnstile-token": "",
-        "oai-language": "en-US",
+        "traceparent": traceparent,
+        "tracestate": "dd=s:1;o:rum",
+        "x-datadog-origin": "rum",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-trace-id": str(trace_id),
+        "x-datadog-parent-id": str(parent_id),
     }
 
 
@@ -116,13 +123,26 @@ def build_workspace_token_result(
     workspace_name = workspace_display_name(workspace) if workspace else token_workspace_id
     workspace_kind = workspace.get("kind") if workspace else None
 
+    id_token = token_data.get("id_token", "")
     expires_in = token_data.get("expires_in") or 30 * 24 * 3600
     expires_at = token_data.get("expires_at")
     if expires_at is None:
         expires_at = int(time.time() * 1000) + int(expires_in) * 1000
 
+    shanghai_tz = timezone(timedelta(hours=8))
+    expired = ""
+    exp_timestamp = payload.get("exp") if isinstance(payload, dict) else None
+    if isinstance(exp_timestamp, int) and exp_timestamp > 0:
+        expired = datetime.fromtimestamp(exp_timestamp, tz=shanghai_tz).strftime("%Y-%m-%dT%H:%M:%S+08:00")
+
     matched = token_workspace_id == expected_workspace_id if expected_workspace_id else True
     return {
+        "type": "codex",
+        "email": token_data.get("email", ""),
+        "expired": expired,
+        "id_token": id_token,
+        "account_id": token_workspace_id,
+        "last_refresh": datetime.now(tz=shanghai_tz).strftime("%Y-%m-%dT%H:%M:%S+08:00"),
         "workspace_id": token_workspace_id,
         "workspace_name": workspace_name,
         "kind": workspace_kind,

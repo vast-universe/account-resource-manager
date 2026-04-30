@@ -677,6 +677,45 @@ class TokenExtractor:
             traceback.print_exc()
             return TokenExtractionResult(success=False, email=self.email, error_message=str(e))
 
+    def extract_account_tokens(self) -> TokenExtractionResult:
+        """执行一次 Codex OAuth 登录，只保存当前账号绑定的 token。"""
+        try:
+            self._log("开始提取账号 Codex tokens")
+            login_result = self._perform_oauth_login_with_retry()
+            if not login_result.get("success"):
+                return TokenExtractionResult(
+                    success=False,
+                    email=self.email,
+                    error_message=login_result.get("error_message", "OAuth 登录失败"),
+                )
+
+            session_data = login_result.get("session_data") or {}
+            workspaces = session_data.get("workspaces") or []
+            token = self._build_workspace_token_result(
+                login_result.get("token_data") or {},
+                workspaces,
+            )
+            if not token:
+                return TokenExtractionResult(
+                    success=False,
+                    email=self.email,
+                    error_message="未获取到有效账号 token",
+                )
+            if login_result.get("token_data", {}).get("id_token"):
+                token["id_token"] = login_result["token_data"]["id_token"]
+
+            self._log(
+                "账号 Codex token 提取成功: "
+                f"{token.get('workspace_name') or token.get('workspace_id') or self.email}"
+            )
+            return TokenExtractionResult(success=True, email=self.email, workspaces=[token])
+
+        except Exception as e:
+            self._log(f"账号 tokens 提取失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return TokenExtractionResult(success=False, email=self.email, error_message=str(e))
+
     def _perform_oauth_login(
         self,
         target_workspace_id: Optional[str] = None,
@@ -943,7 +982,11 @@ class TokenExtractor:
         known_workspaces: List[Dict[str, Any]],
         expected_workspace_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        result = build_workspace_token_result(token_data, known_workspaces, expected_workspace_id)
+        result = build_workspace_token_result(
+            {**token_data, "email": self.email},
+            known_workspaces,
+            expected_workspace_id,
+        )
         if result and expected_workspace_id and not result.get("matched"):
             self._log(f"警告: token 绑定 workspace {result.get('workspace_id')}，期望 {expected_workspace_id}")
         return result

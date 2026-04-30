@@ -11,7 +11,6 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from chatgpt.token_extractor import TokenExtractor
-from integrations.chatgpt_api_client import ChatGPTApiClient
 from repositories.email_providers import EmailProviderRepository
 
 logger = logging.getLogger(__name__)
@@ -130,8 +129,13 @@ def save_workspace_tokens_snapshot(
     workspaces: List[Dict[str, Any]],
     existing_workspace_tokens: List[Dict[str, Any]],
     team_workspace_id: Optional[str] = None,
+    id_token: Optional[str] = None,
+    replace_existing: bool = False,
+    clear_team_state: bool = False,
 ) -> List[Dict[str, Any]]:
-    merged_workspaces = merge_workspace_tokens(existing_workspace_tokens, workspaces)
+    merged_workspaces = [
+        token for token in (workspaces or []) if isinstance(token, dict)
+    ] if replace_existing else merge_workspace_tokens(existing_workspace_tokens, workspaces)
     subscription_type = detect_subscription_type(merged_workspaces)
     now = datetime.now()
     first_workspace = merged_workspaces[0] if merged_workspaces else {}
@@ -145,9 +149,14 @@ def save_workspace_tokens_snapshot(
             SET
                 access_token = COALESCE(NULLIF(%s, ''), access_token),
                 refresh_token = COALESCE(NULLIF(%s, ''), refresh_token),
+                id_token = COALESCE(NULLIF(%s, ''), id_token),
+                account_id = COALESCE(NULLIF(%s, ''), account_id),
                 workspace_tokens = %s,
                 subscription_type = %s,
-                team_workspace_id = COALESCE(%s, team_workspace_id),
+                team_workspace_id = CASE WHEN %s THEN NULL ELSE COALESCE(%s, team_workspace_id) END,
+                team_member_count = CASE WHEN %s THEN NULL ELSE team_member_count END,
+                team_members = CASE WHEN %s THEN '[]'::jsonb ELSE team_members END,
+                team_members_refreshed_at = CASE WHEN %s THEN NULL ELSE team_members_refreshed_at END,
                 status = 'active',
                 health_status = 'healthy',
                 last_checked_at = %s,
@@ -158,9 +167,15 @@ def save_workspace_tokens_snapshot(
             (
                 first_workspace.get("access_token", ""),
                 first_workspace.get("refresh_token", ""),
+                id_token or first_workspace.get("id_token", ""),
+                first_workspace.get("account_id") or first_workspace.get("workspace_id", ""),
                 json.dumps(merged_workspaces),
                 subscription_type,
+                clear_team_state,
                 team_workspace_id,
+                clear_team_state,
+                clear_team_state,
+                clear_team_state,
                 now,
                 now,
                 account_id,
@@ -173,57 +188,6 @@ def save_workspace_tokens_snapshot(
 
     logger.info("已保存 workspace tokens 快照: account_id=%s count=%s", account_id, len(merged_workspaces))
     return merged_workspaces
-
-
-def _normalize_email(email: Optional[str]) -> str:
-    return (email or "").strip().lower()
-
-
-def _extract_member_items(payload: Any) -> List[Any]:
-    if not isinstance(payload, dict):
-        return []
-    for key in ("items", "users", "data", "results", "members"):
-        value = payload.get(key)
-        if isinstance(value, list):
-            return value
-    return []
-
-
-def resolve_mother_team_workspace_id(
-    email: str,
-    team_workspaces: List[Dict[str, Any]],
-    proxy_url: Optional[str] = None,
-) -> Optional[str]:
-    """Identify the account-owned Team workspace by account-owner member email."""
-    if not team_workspaces:
-        return None
-    if len(team_workspaces) == 1:
-        return team_workspaces[0].get("workspace_id")
-
-    target_email = _normalize_email(email)
-    api_client = ChatGPTApiClient(proxy=proxy_url or "")
-    for workspace in team_workspaces:
-        workspace_id = workspace.get("workspace_id")
-        access_token = workspace.get("access_token")
-        if not workspace_id or not access_token:
-            continue
-
-        result = api_client.list_team_members(workspace_id, access_token)
-        if not result.ok:
-            logger.warning("查询 Team 成员失败，跳过 workspace %s: %s", workspace_id, result.error)
-            continue
-
-        for member in _extract_member_items(result.payload):
-            if not isinstance(member, dict):
-                continue
-            role = member.get("role") or member.get("account_role")
-            member_email = _normalize_email(member.get("email"))
-            if role == "account-owner" and member_email == target_email:
-                logger.info("识别母号 Team 空间: %s -> %s", email, workspace_id)
-                return workspace_id
-
-    logger.warning("未能根据成员列表识别母号 Team 空间: %s", email)
-    return None
 
 
 def extract_tokens_for_account(
@@ -292,14 +256,6 @@ def extract_tokens_for_account(
     if not isinstance(existing_workspace_tokens, list):
         existing_workspace_tokens = []
 
-    def persist_partial_workspace_tokens(workspaces: List[Dict[str, Any]]) -> None:
-        save_workspace_tokens_snapshot(
-            database_url=database_url,
-            account_id=account_id,
-            workspaces=workspaces,
-            existing_workspace_tokens=existing_workspace_tokens,
-        )
-
     extractor = TokenExtractor(
         email=email,
         password=password,
@@ -308,11 +264,10 @@ def extract_tokens_for_account(
         moemail_email_id=resolved_moemail_email_id,
         proxy=proxy_url,
         existing_workspace_tokens=existing_workspace_tokens,
-        workspace_token_callback=persist_partial_workspace_tokens,
     )
 
     logger.info("开始提取账号 %s 的 tokens", email)
-    result = extractor.extract_tokens()
+    result = extractor.extract_account_tokens()
     if not result.success:
         update_chatgpt_account_refresh_status(
             database_url,
@@ -323,25 +278,20 @@ def extract_tokens_for_account(
         )
         raise ChatGPTTokenExtractionError(result.error_message or "刷新失败", 500)
 
-    team_workspaces = [
-        workspace
-        for workspace in result.workspaces
-        if workspace.get("plan_type") == "team" and workspace.get("workspace_id")
-    ]
-    team_workspace_id = resolve_mother_team_workspace_id(email, team_workspaces, proxy_url)
     saved_workspaces = save_workspace_tokens_snapshot(
         database_url=database_url,
         account_id=account_id,
         workspaces=result.workspaces,
         existing_workspace_tokens=existing_workspace_tokens,
-        team_workspace_id=team_workspace_id,
+        replace_existing=True,
+        clear_team_state=True,
     )
     subscription_type = detect_subscription_type(saved_workspaces)
 
-    logger.info("成功提取并保存 %s 个 workspace tokens", len(saved_workspaces))
+    logger.info("成功提取并保存账号 tokens: account_id=%s", account_id)
     return {
         "success": True,
-        "message": f"成功刷新 {len(saved_workspaces)} 个 workspace",
+        "message": "成功刷新账号 tokens",
         "subscription_type": subscription_type,
         "workspaces": saved_workspaces,
     }

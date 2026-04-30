@@ -44,6 +44,7 @@ import {
 } from "@ant-design/icons";
 import Text from "antd/es/typography/Text";
 import type { ColumnsType } from "antd/es/table";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 interface ChatGPTAccount {
   id: number;
@@ -498,16 +499,8 @@ export default function ChatGPTAccountsPage() {
     );
   };
 
-  const hasFreePersonalToken = (account?: ChatGPTAccount | null) => {
-    return getWorkspaceTokens(account).some(token => (
-      (token.kind || "").toLowerCase() === "personal" &&
-      (token.plan_type || "").toLowerCase() === "free"
-    ));
-  };
-
   const shouldShowTokenRefresh = (account?: ChatGPTAccount | null) => {
-    const stats = getWorkspaceTokenStats(account);
-    return hasFreePersonalToken(account) || stats.total < 6;
+    return !!account;
   };
 
   const shouldShowInviteAction = (account?: ChatGPTAccount | null) => {
@@ -702,29 +695,29 @@ export default function ChatGPTAccountsPage() {
   };
 
   // 复制到剪贴板
-  const handleCopyUrl = (url: string, type: string) => {
-    navigator.clipboard.writeText(url).then(() => {
+  const handleCopyUrl = async (url: string, type: string) => {
+    if (await copyTextToClipboard(url)) {
       message.success(`${type} 链接已复制`);
-    }).catch(() => {
-      message.error("复制失败");
-    });
+    } else {
+      message.error("复制失败，请重试");
+    }
   };
 
   // 复制密码
-  const handleCopyPassword = (password: string) => {
-    navigator.clipboard.writeText(password).then(() => {
+  const handleCopyPassword = async (password: string) => {
+    if (await copyTextToClipboard(password)) {
       message.success("密码已复制");
-    }).catch(() => {
-      message.error("复制失败");
-    });
+    } else {
+      message.error("复制失败，请重试");
+    }
   };
 
-  const handleCopyToken = (token: string, label: string) => {
-    navigator.clipboard.writeText(token).then(() => {
+  const handleCopyToken = async (token: string, label: string) => {
+    if (await copyTextToClipboard(token)) {
       message.success(`${label} 已复制`);
-    }).catch(() => {
-      message.error("复制失败");
-    });
+    } else {
+      message.error("复制失败，请重试");
+    }
   };
 
   const handleLoadTeamMembers = async (account: ChatGPTAccount) => {
@@ -823,12 +816,12 @@ export default function ChatGPTAccountsPage() {
   };
 
   // 复制邮箱
-  const handleCopyEmail = (email: string) => {
-    navigator.clipboard.writeText(email).then(() => {
+  const handleCopyEmail = async (email: string) => {
+    if (await copyTextToClipboard(email)) {
       message.success("邮箱已复制");
-    }).catch(() => {
-      message.error("复制失败");
-    });
+    } else {
+      message.error("复制失败，请重试");
+    }
   };
 
   // 提取 tokens
@@ -851,7 +844,7 @@ export default function ChatGPTAccountsPage() {
       }
 
       message.success({
-        content: `成功提取 ${data.workspaces?.length || 0} 个 workspace 的 tokens`,
+        content: data.message || "成功刷新账号 tokens",
         key: `extract-${account.id}`,
       });
 
@@ -915,11 +908,11 @@ export default function ChatGPTAccountsPage() {
       return;
     }
     if (selectedRefreshableCount === 0) {
-      message.info("选中的账号 tokens 已满 6 个且没有 free 个人 token，无需刷新");
+      message.info("请选择可刷新的账号");
       return;
     }
 
-    batchRefreshForm.setFieldsValue({ concurrency: 3 });
+    batchRefreshForm.setFieldsValue({ concurrency: 10 });
     setBatchRefreshModalVisible(true);
   };
 
@@ -928,13 +921,13 @@ export default function ChatGPTAccountsPage() {
       .filter(account => selectedRowKeys.includes(account.id) && shouldShowTokenRefresh(account))
       .map(account => account.id);
     if (selectedAccountIds.length === 0) {
-      message.info("选中的账号 tokens 已满 6 个且没有 free 个人 token，无需刷新");
+      message.info("请选择可刷新的账号");
       return;
     }
 
     const concurrency = Math.min(
-      Math.max(Number(values?.concurrency || 3), 1),
-      Math.min(selectedAccountIds.length, 10),
+      Math.max(Number(values?.concurrency || 10), 1),
+      Math.min(selectedAccountIds.length, 100),
     );
     let cursor = 0;
     let successCount = 0;
@@ -1483,7 +1476,6 @@ export default function ChatGPTAccountsPage() {
 
   const getAccountMoreActionItems = (record: ChatGPTAccount): MenuProps["items"] => {
     const hasEmailServiceId = !!record.email_service_id;
-    const hasSubscription = ["plus", "team", "plus_team"].includes(record.subscription_type || "");
     const showTokenRefresh = shouldShowTokenRefresh(record);
     const canInvite = shouldShowInviteAction(record);
 
@@ -1495,7 +1487,7 @@ export default function ChatGPTAccountsPage() {
             icon: <PlusOutlined />,
           }
         : null,
-      hasSubscription && showTokenRefresh
+      showTokenRefresh
         ? {
             key: "extract",
             label: "提取",
@@ -1542,7 +1534,7 @@ export default function ChatGPTAccountsPage() {
           </Button>
         )}
         {showTokenRefresh && (
-          <Tooltip title={!hasEmailServiceId ? "缺少 MoeMail 邮箱 ID" : "登录账号并刷新空间"}>
+          <Tooltip title={!hasEmailServiceId ? "缺少 MoeMail 邮箱 ID" : "登录账号并刷新账号 tokens"}>
             <Button
               type={compact ? "default" : "link"}
               size="small"
@@ -2113,14 +2105,14 @@ export default function ChatGPTAccountsPage() {
         <Form
           form={batchRefreshForm}
           layout="vertical"
-          initialValues={{ concurrency: 3 }}
+          initialValues={{ concurrency: 10 }}
           onFinish={handleBatchRefreshAccounts}
         >
           <Alert
             type="info"
             showIcon
             message={`将刷新 ${selectedRefreshableCount} 个账号`}
-            description="刷新会登录账号获取最新空间列表，已有 workspace token 会复用，只补新增空间 token。"
+            description="刷新会登录账号，按 Codex OAuth 流程获取并保存当前账号 tokens。"
             style={{ marginBottom: 16 }}
           />
           <Form.Item
@@ -2128,7 +2120,7 @@ export default function ChatGPTAccountsPage() {
             name="concurrency"
             rules={[{ required: true, message: "请输入并发数" }]}
           >
-            <InputNumber min={1} max={10} precision={0} style={{ width: "100%" }} />
+            <InputNumber min={1} max={100} precision={0} style={{ width: "100%" }} />
           </Form.Item>
         </Form>
       </Modal>
@@ -2246,7 +2238,11 @@ export default function ChatGPTAccountsPage() {
                     {workspace.kind && <Tag>{workspace.kind}</Tag>}
                     {String(workspace.matched) === "true" && <Tag color="success">matched</Tag>}
                   </Space>
-                  <Text type="secondary" copyable={{ text: workspace.workspace_id || "" }}>
+                  <Text
+                    type="secondary"
+                    onClick={() => handleCopyToken(workspace.workspace_id || "", "Workspace ID")}
+                    style={{ cursor: workspace.workspace_id ? "pointer" : "default" }}
+                  >
                     {workspace.workspace_id || "-"}
                   </Text>
                   <Text type="secondary" style={{ fontSize: 12 }}>
@@ -2331,7 +2327,11 @@ export default function ChatGPTAccountsPage() {
                     HTTP {teamMembersModal.workspace.status || 0}
                   </Tag>
                 </Space>
-                <Text type="secondary" copyable={{ text: teamMembersModal.team_workspace_id }}>
+                <Text
+                  type="secondary"
+                  onClick={() => handleCopyToken(teamMembersModal.team_workspace_id || "", "Workspace ID")}
+                  style={{ cursor: teamMembersModal.team_workspace_id ? "pointer" : "default" }}
+                >
                   {teamMembersModal.team_workspace_id}
                 </Text>
               </Flex>
@@ -2362,7 +2362,11 @@ export default function ChatGPTAccountsPage() {
                   width: 260,
                   render: (email?: string) => email ? (
                     <Tooltip title={email}>
-                      <Text copyable={{ text: email }} ellipsis style={{ maxWidth: 220 }}>
+                      <Text
+                        ellipsis
+                        onClick={() => handleCopyEmail(email)}
+                        style={{ maxWidth: 220, cursor: "pointer" }}
+                      >
                         {email}
                       </Text>
                     </Tooltip>

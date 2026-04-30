@@ -24,6 +24,7 @@ import {
   ReloadOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 interface Proxy {
   id: string;
@@ -65,11 +66,10 @@ export default function ProxiesPage() {
   };
 
   const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyTextToClipboard(text)) {
       message.success("已复制");
-    } catch {
-      message.error("复制失败");
+    } else {
+      message.error("复制失败，请重试");
     }
   };
 

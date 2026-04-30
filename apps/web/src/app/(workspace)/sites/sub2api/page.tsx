@@ -25,6 +25,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 interface Sub2ApiSite {
   id: string;
@@ -82,11 +83,10 @@ export default function Sub2ApiSitesPage() {
   };
 
   const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyTextToClipboard(text)) {
       message.success("已复制");
-    } catch {
-      message.error("复制失败");
+    } else {
+      message.error("复制失败，请重试");
     }
   };
 
