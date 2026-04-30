@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     sameSite: "lax",
     secure: isHttpsRequest(request),
     path: "/",
+    domain: undefined, // 允许跨子域和 IP 访问
     ...(rememberMe ? { maxAge: SESSION_MAX_AGE } : {}),
   });
 

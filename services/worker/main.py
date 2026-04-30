@@ -495,7 +495,7 @@ class Sub2ApiExportRequest(BaseModel):
 
 @app.post("/api/chatgpt/extract-tokens")
 async def extract_tokens(request: TokenExtractionRequest, background_tasks: BackgroundTasks):
-    """刷新账号空间数据：登录账号，提取 workspace tokens，并记录母号 Team 空间。"""
+    """刷新账号 tokens：登录账号，按 Codex OAuth 流程提取并保存当前账号 token。"""
     try:
         return extract_tokens_for_account(
             database_url=DATABASE_URL,
